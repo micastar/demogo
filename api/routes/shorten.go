@@ -2,11 +2,15 @@ package routes
 
 import (
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
+	"github.com/micastar/shorten-url/database"
 	"github.com/micastar/shorten-url/helpers"
+	"github.com/redis/go-redis/v9"
 )
 
 type request struct {
@@ -32,6 +36,20 @@ func ShortenURL(c *gin.Context) {
 
 	// implement rate limiting
 
+	rc := database.CreateClient(1)
+	defer rc.Close()
+	val, err := rc.Get(database.Ctx, c.RemoteIP()).Result()
+	if err == redis.Nil {
+		_ = rc.Set(database.Ctx, c.RemoteIP(), os.Getenv("API_QUOTA"), 30*60*time.Second).Err()
+	} else {
+		val, _ = rc.Get(database.Ctx, c.RemoteIP()).Result()
+		valInt, _ := strconv.Atoi(val)
+		if valInt <= 0 {
+			limit, _ := rc.TTL(database.Ctx, c.RemoteIP()).Result()
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Rate limit exceed", "rate_limit_rest": limit / time.Nanosecond / time.Minute})
+		}
+	}
+
 	// check if the input if an actual URL
 
 	if !govalidator.IsURL(body.URL) {
@@ -47,4 +65,6 @@ func ShortenURL(c *gin.Context) {
 	// enforce https, SSL
 
 	body.URL = helpers.EnforceHTTP(body.URL)
+
+	rc.Decr(database.Ctx, c.RemoteIP())
 }
