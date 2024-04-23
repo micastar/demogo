@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"log"
 	"os"
 
 	"github.com/redis/go-redis/v9"
@@ -15,5 +16,11 @@ func CreateClient(dbNo int) *redis.Client {
 		Password: os.Getenv("DB_PASS"),
 		DB:       dbNo,
 	})
+
+	_, err := rdb.Ping(context.Background()).Result()
+	if err != nil {
+		log.Fatal("Error Connection to Redis: ", err)
+	}
+
 	return rdb
 }

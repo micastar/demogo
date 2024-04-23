@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 
@@ -15,17 +14,19 @@ func setuprRoutes(r *gin.Engine) {
 	r.POST("/api/v1", routes.ShortenURL)
 }
 
-func main() {
+func init() {
 	err := godotenv.Load()
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal("Error loading .env file")
 	}
+}
 
+func main() {
 	r := gin.New()
 
 	r.Use(gin.Logger())
 
 	setuprRoutes(r)
 
-	log.Fatal(r.Run(os.Getenv("APP_ADDR")))
+	log.Fatal(r.Run(os.Getenv("APP_PORT")))
 }

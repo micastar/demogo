@@ -23,4 +23,8 @@ func ResolveURL(r *gin.Context) {
 
 	rInt := database.CreateClient(1)
 	defer rInt.Close()
+
+	_ = rInt.Incr(database.Ctx, "counter")
+
+	r.Redirect(301, value)
 }
