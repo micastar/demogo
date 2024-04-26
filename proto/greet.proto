@@ -5,5 +5,11 @@ option go_package = "./proto";
 package greet_service;
 
 service GreetService{
-    
+    rpc SayHello (NoParam) returns (HelloResponse);
+}
+
+message NoParam{};
+
+message HelloResponse{
+    string name = 1;
 }
