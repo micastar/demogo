@@ -6,10 +6,16 @@ package greet_service;
 
 service GreetService{
     rpc SayHello (NoParam) returns (HelloResponse);
+
+    rpc SayHelloServerStreaming (NameList) returns (stream HelloResponse);
 }
 
 message NoParam{};
 
 message HelloResponse{
     string name = 1;
+}
+
+message NameList{
+    repeated string name = 1;
 }
