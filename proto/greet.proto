@@ -21,7 +21,7 @@ message HelloRequest{
 }
 
 message HelloResponse{
-    string name = 1;
+    string message = 1;
 }
 
 message NameList{
@@ -29,5 +29,5 @@ message NameList{
 }
 
 message MessageList {
-    repeated string message = 1;
+    repeated string messages = 1;
 }
