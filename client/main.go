@@ -5,6 +5,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	pb "github.com/micastar/basic-grpc/proto"
 )
 
 const (
@@ -17,4 +19,12 @@ func main() {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
+
+	client := pb.NewGreetServiceClient(conn)
+
+	// 	names := &pb.NameList{
+	// 		Names: []string{"John", "Aka", "Bob"},
+	// 	}
+
+	callSayHello(client)
 }
