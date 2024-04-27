@@ -28,6 +28,8 @@ func main() {
 
 	// callSayHello(client) // regular request
 
-	callSayHelloServerStreaming(client, names)
+	// callSayHelloServerStreaming(client, names)
+
+	callSayHelloClientStream(client, names)
 
 }
