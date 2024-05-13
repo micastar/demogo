@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"strconv"
@@ -21,50 +22,70 @@ type request struct {
 }
 
 type response struct {
-	URL            string        `json:"url"`
-	CustomShort    string        `json:"short"`
-	Expiry         time.Duration `json:"expiry"`
-	XRateRemaing   int           `json:"rate_limit"`
-	XRateLimitRest time.Duration `json:"rate_limit_reset"`
+	URL            string `json:"url"`
+	CustomShort    string `json:"short"`
+	Expiry         int    `json:"expiry"`
+	XRateRemaing   int    `json:"rate_limit"`
+	XRateLimitRest int    `json:"rate_limit_reset"`
 }
 
 func ShortenURL(c *gin.Context) {
+
+	ctx := context.Background()
+
 	body := new(request)
 
 	if err := c.BindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot parse JSON"})
+		return
 	}
 
-	// implement rate limiting
+	// set data
+	r := database.CreateClient(helpers.RedisDatabaseMain)
+	defer r.Close()
 
-	rc := database.CreateClient(1)
-	defer rc.Close()
-	_, err := rc.Get(database.Ctx, c.RemoteIP()).Result()
-	if err == redis.Nil {
-		_ = rc.Set(database.Ctx, c.RemoteIP(), os.Getenv("API_QUOTA"), 30*60*time.Second).Err()
-	} else {
-		val, _ := rc.Get(database.Ctx, c.RemoteIP()).Result()
+	// rate limiting
+	Incr := database.CreateClient(helpers.RedisDatabaseIncr)
+	defer Incr.Close()
+
+	_, err := Incr.Get(ctx, c.RemoteIP()).Result()
+
+	switch {
+	case err == redis.Nil:
+		Incr.Set(ctx, c.RemoteIP(), os.Getenv("API_QUOTA"), helpers.ApiQuotaTTL*60*time.Second).Err()
+	case err == nil:
+		// Get remaining count
+		val, _ := Incr.Get(ctx, c.RemoteIP()).Result()
+
 		valInt, _ := strconv.Atoi(val)
+
 		if valInt <= 0 {
-			limit, _ := rc.TTL(database.Ctx, c.RemoteIP()).Result()
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Rate limit exceed", "rate_limit_rest": limit / time.Nanosecond / time.Minute})
+			limit, _ := Incr.TTL(ctx, c.RemoteIP()).Result()
+
+			c.JSON(
+				http.StatusServiceUnavailable,
+				gin.H{
+					"error":           "Rate limit exceed",
+					"rate_limit_rest": limit / time.Nanosecond / time.Minute,
+				},
+			)
+			return
 		}
 	}
 
-	// check if the input if an actual URL
-
+	//check the input is actual URL
 	if !govalidator.IsURL(body.URL) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL"})
+		return
 	}
 
-	// check for domain error
-
+	//check for the domain error
 	if !helpers.RemoveDomainError(body.URL) {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "you can't hack the system"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"eror": "Current URL equal to the local domain"})
+		return
 	}
 
 	// enforce http, https, SSL
-
 	body.URL = helpers.EnforceHTTP(body.URL)
 
 	var id string
@@ -75,40 +96,38 @@ func ShortenURL(c *gin.Context) {
 		id = body.CustomShort
 	}
 
-	r := database.CreateClient(0)
-	defer r.Close()
+	if body.Expiry == 0 {
+		body.Expiry = 8
+	}
 
-	val, _ := r.Get(database.Ctx, id).Result()
+	val, _ := r.Get(ctx, id).Result()
 	if val != "" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "URL custom short is already in use"})
+		return
 	}
 
-	if body.Expiry == 0 {
-		body.Expiry = 24
-	}
-
-	err = r.Set(database.Ctx, id, body.URL, body.Expiry*3600*time.Second).Err()
+	err = r.Set(ctx, id, body.URL, body.Expiry*60*time.Second).Err()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to connect to server"})
+		return
 	}
 
 	resp := response{
-		URL:            body.URL,
-		CustomShort:    "",
-		Expiry:         body.Expiry,
-		XRateRemaing:   10,
-		XRateLimitRest: 30,
+		URL:    body.URL,
+		Expiry: int(body.Expiry),
 	}
 
-	rc.Decr(database.Ctx, c.RemoteIP())
+	Incr.DecrBy(ctx, c.RemoteIP(), helpers.RateLimitDecrement)
 
-	val, _ = rc.Get(database.Ctx, c.RemoteIP()).Result()
+	// Get Remaining Count
+	val, _ = Incr.Get(ctx, c.RemoteIP()).Result()
 	resp.XRateRemaing, _ = strconv.Atoi(val)
 
-	ttl, _ := rc.TTL(database.Ctx, c.RemoteIP()).Result()
-	resp.XRateLimitRest = ttl / time.Nanosecond / time.Minute
+	ttl, _ := Incr.TTL(ctx, c.RemoteIP()).Result()
+	resp.XRateLimitRest = int(ttl.Minutes())
 
 	resp.CustomShort = os.Getenv("DOMAIN") + "/" + id
 
 	c.JSON(http.StatusOK, resp)
+
 }

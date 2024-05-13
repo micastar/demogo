@@ -9,9 +9,9 @@ import (
 	"github.com/micastar/shorten-url/routes"
 )
 
-func setuprRoutes(r *gin.Engine) {
+func setupRoutes(r *gin.Engine) {
 	r.GET("/:url", routes.ResolveURL)
-	r.POST("/api/v1", routes.ShortenURL)
+	r.POST("/api", routes.ShortenURL)
 }
 
 func init() {
@@ -22,11 +22,9 @@ func init() {
 }
 
 func main() {
-	r := gin.New()
+	r := gin.Default()
 
-	r.Use(gin.Logger())
-
-	setuprRoutes(r)
+	setupRoutes(r)
 
 	log.Fatal(r.Run(os.Getenv("APP_PORT")))
 }
