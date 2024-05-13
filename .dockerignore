@@ -1,0 +1,6 @@
+.git
+.vscode
+.env.sample
+.gitignore
+basic.sql
+README.md
