@@ -1,0 +1,28 @@
+# Use USER/PWD as user/password credentials
+services:
+  postgres:
+    image: postgres:12-alpine
+    container_name: postgres
+    network_mode: "bridge"
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=USER
+      - POSTGRES_USER=postgres
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    
+  pgweb:
+    image: sosedoff/pgweb:latest
+    container_name: pgweb
+    network_mode: "bridge"
+    ports: 
+      - 8081:8081
+    links: 
+      - postgres:postgres
+    depends_on:
+      postgres:
+        condition: service_started
+    environment:
+    - PGWEB_DATABASE_URL=postgres://USER:PWD@IP:PORT/DATABASE?sslmode=disable
