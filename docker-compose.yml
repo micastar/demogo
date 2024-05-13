@@ -4,10 +4,8 @@ services:
     image: postgres:12-alpine
     container_name: postgres
     network_mode: "bridge"
-    ports:
-      - 5432:5432
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_PASSWORD=USER
       - POSTGRES_USER=postgres
@@ -25,4 +23,4 @@ services:
       postgres:
         condition: service_started
     environment:
-    - PGWEB_DATABASE_URL=postgres://USER:PWD@IP:PORT/DATABASE?sslmode=disable
+    - PGWEB_DATABASE_URL=postgres://USER:PWD@postgres:PORT/DATABASE?sslmode=disable
