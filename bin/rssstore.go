@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/micastar/basic-feed/global"
-	"github.com/micastar/basic-feed/util"
+	"github.com/micastar/discord-feed/global"
+	"github.com/micastar/discord-feed/util"
 	"github.com/mmcdole/gofeed"
 )
 

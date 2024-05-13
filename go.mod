@@ -1,4 +1,4 @@
-module github.com/micastar/basic-feed
+module github.com/micastar/discord-feed
 
 go 1.22.3
 

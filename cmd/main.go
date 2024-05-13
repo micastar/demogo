@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/micastar/basic-feed/bin"
-	"github.com/micastar/basic-feed/global"
-	"github.com/micastar/basic-feed/util"
+	"github.com/micastar/discord-feed/bin"
+	"github.com/micastar/discord-feed/global"
+	"github.com/micastar/discord-feed/util"
 )
 
 func init() {
