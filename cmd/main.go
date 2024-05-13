@@ -71,12 +71,6 @@ func main() {
 
 	var conId string
 
-	log.Println("Initial Discrod Data")
-
-	// Initial discord structure to send data to discrod via webhook
-	discod := bin.Config{}
-	discod.WebhookURL = os.Getenv("WebhookURL")
-
 	fs, err := bin.NewFeedStore(os.Getenv("DB_URL"))
 	if err != nil {
 		log.Printf("Error creating FeedStore: %v\n", err)
@@ -85,18 +79,28 @@ func main() {
 	getIdInterval := global.GetIdInterval
 	idTicker := time.NewTicker(getIdInterval)
 
-	select {
-	case <-idTicker.C:
-		// Get the id from db
-		conId, err = fs.ReadDataGId()
-		if err != nil {
-			log.Printf("Error Get Data G_id: %v\n", err)
+	go func() {
+		for {
+			select {
+			case <-idTicker.C:
+				// Get the id from db
+				conId, err = fs.ReadDataGId()
+				if err != nil {
+					log.Printf("Error Get Data G_id: %v\n", err)
+				}
+				if conId != "" {
+					idTicker.Stop()
+					break
+				}
+			}
 		}
-		if conId != "" {
-			idTicker.Stop()
-			break
-		}
-	}
+	}()
+
+	log.Println("Initial Discrod Data")
+
+	// Initial discord structure to send data to discrod via webhook
+	discod := bin.Config{}
+	discod.WebhookURL = os.Getenv("WebhookURL")
 
 	// Send data with interval time
 	setData := func(i []*bin.Post) {
