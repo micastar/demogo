@@ -35,10 +35,12 @@ func ShortenURL(c *gin.Context) {
 
 	body := new(request)
 
-	if err := c.BindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot parse JSON"})
-		return
-	}
+	url := c.Request.FormValue("url")
+
+	// if err := c.BindJSON(&body); err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "cannot parse JSON"})
+	// 	return
+	// }
 
 	// set data
 	r := database.CreateClient(helpers.RedisDatabaseMain)
@@ -74,19 +76,19 @@ func ShortenURL(c *gin.Context) {
 	}
 
 	//check the input is actual URL
-	if !govalidator.IsURL(body.URL) {
+	if !govalidator.IsURL(url) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL"})
 		return
 	}
 
 	//check for the domain error
-	if !helpers.RemoveDomainError(body.URL) {
+	if !helpers.RemoveDomainError(url) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"eror": "Current URL equal to the local domain"})
 		return
 	}
 
 	// enforce http, https, SSL
-	body.URL = helpers.EnforceHTTP(body.URL)
+	body.URL = helpers.EnforceHTTP(url)
 
 	var id string
 
