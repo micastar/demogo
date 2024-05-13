@@ -82,10 +82,20 @@ func main() {
 		log.Printf("Error creating FeedStore: %v\n", err)
 	}
 
-	// Get the id from db
-	conId, err = fs.ReadDataGId()
-	if err != nil {
-		log.Fatalf("Error Get Data G_id: %v\n", err)
+	getIdInterval := global.GetIdInterval
+	idTicker := time.NewTicker(getIdInterval)
+
+	select {
+	case <-idTicker.C:
+		// Get the id from db
+		conId, err = fs.ReadDataGId()
+		if err != nil {
+			log.Printf("Error Get Data G_id: %v\n", err)
+		}
+		if conId != "" {
+			idTicker.Stop()
+			break
+		}
 	}
 
 	// Send data with interval time

@@ -11,6 +11,8 @@ const (
 
 	DefaultStoreInterval = 3 * time.Hour
 
+	GetIdInterval = 30 * time.Minute
+
 	DefaultSendInterval = 1 * time.Hour
 
 	DefaultPausingInterval = 20 * time.Minute
