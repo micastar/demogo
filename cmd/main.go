@@ -79,6 +79,11 @@ func main() {
 	getIdInterval := global.GetIdInterval
 	idTicker := time.NewTicker(getIdInterval)
 
+	log.Println("Initial Send Interval Time")
+
+	sendInterval := global.DefaultSendInterval
+	ticker := time.NewTicker(sendInterval)
+
 	go func() {
 		for {
 			select {
@@ -86,7 +91,9 @@ func main() {
 				// Get the id from db
 				conId, err = fs.ReadDataGId()
 				if err != nil {
-					log.Printf("Error Get Data G_id: %v\n", err)
+					log.Printf("Error Cannot Get Data G_id: %v\n", err)
+					idTicker.Reset(getIdInterval)
+					ticker.Reset(sendInterval)
 				}
 				if conId != "" {
 					idTicker.Stop()
@@ -113,11 +120,6 @@ func main() {
 			}
 		}
 	}
-
-	log.Println("Initial Send Interval Time")
-
-	sendInterval := global.DefaultSendInterval
-	ticker := time.NewTicker(sendInterval)
 
 	var list []*bin.Post
 
