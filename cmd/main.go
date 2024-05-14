@@ -130,6 +130,7 @@ func main() {
 			log.Println("Initial Discord channel to Send data")
 
 			err := discod.InitialConfig(*v)
+			time.Sleep(2 * time.Minute)
 			if err != nil {
 				log.Printf("InitialConfig: %s", err)
 			}
