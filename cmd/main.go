@@ -54,6 +54,15 @@ func main() {
 
 	log.Println("Everything Starting!!!")
 
+	var list []*bin.Post
+
+	var conId *string
+
+	fs, err := bin.NewFeedStore(os.Getenv("DB_URL"))
+	if err != nil {
+		log.Printf("Error creating FeedStore: %v\n", err)
+	}
+
 	log.Println("Initial Store Interval Time")
 	// Pull data from remote (rss) with interval time
 	storeInterval := global.DefaultStoreInterval
@@ -63,18 +72,13 @@ func main() {
 		for {
 			select {
 			case <-storeTicker.C:
+
 				log.Println("Start Get Data From Remote")
+
 				initialRssReader()
 			}
 		}
 	}()
-
-	var conId string
-
-	fs, err := bin.NewFeedStore(os.Getenv("DB_URL"))
-	if err != nil {
-		log.Printf("Error creating FeedStore: %v\n", err)
-	}
 
 	getIdInterval := global.GetIdInterval
 	idTicker := time.NewTicker(getIdInterval)
@@ -82,26 +86,36 @@ func main() {
 	log.Println("Initial Send Interval Time")
 
 	sendInterval := global.DefaultSendInterval
-	ticker := time.NewTicker(sendInterval)
+	sendTicker := time.NewTicker(sendInterval)
 
-	go func() {
-		for {
-			select {
-			case <-idTicker.C:
-				// Get the id from db
-				conId, err = fs.ReadDataGId()
-				if err != nil {
-					log.Printf("Error Cannot Get Data G_id: %v\n", err)
-					idTicker.Reset(getIdInterval)
-					ticker.Reset(sendInterval)
-				}
-				if conId != "" {
-					idTicker.Stop()
-					break
-				}
-			}
+	for {
+		// Stop it until idTicker's value to 0
+		<-idTicker.C
+
+		conId, err = fs.ReadDataGId()
+
+		// Get the id from db
+		if err != nil {
+
+			log.Printf("Error Cannot Get Data G_id: %v\n", err)
+
+			idTicker.Reset(getIdInterval)
+			sendTicker.Reset(sendInterval)
+
+			log.Println("Reset Ticker.")
+			log.Println("Waking!!!")
 		}
-	}()
+		if conId != nil {
+			idTicker.Stop()
+
+			log.Println("!!!!!!!!Ecerything Starting!!!!!!!!!!")
+			log.Println("First Read Data with ReadDataWithLimit")
+
+			list, _ = fs.ReadDataWithLimit()
+
+			break
+		}
+	}
 
 	log.Println("Initial Discrod Data")
 
@@ -111,6 +125,7 @@ func main() {
 
 	// Send data with interval time
 	setData := func(i []*bin.Post) {
+
 		for _, v := range i {
 			log.Println("Initial Discord channel to Send data")
 
@@ -121,36 +136,42 @@ func main() {
 		}
 	}
 
-	var list []*bin.Post
-
-	log.Println("First Read Data with ReadDataWithLimit")
-
 	go func() {
-
-		list, _ = fs.ReadDataWithLimit()
 
 		for {
 			log.Println("Waiting Ticker Ready!!!")
 
 			select {
-			case <-ticker.C:
+			case <-sendTicker.C:
+
 				if len(list) > 0 {
 
-					log.Println("Second Send Data")
+					log.Println("len(list) > 0  Send Data")
 					setData(list)
 					list = nil
+
 				} else {
+					log.Println("len(list) < 0  No Data")
+
 					log.Println("No data to send, pausing the timer...")
-					ticker.Stop()
+					sendTicker.Stop()
 					for len(list) == 0 {
 						log.Println("Pausing...")
 						time.Sleep(global.DefaultPausingInterval)
 
 						log.Println("Check Data with ReadLatestData Again")
-						list, _ = fs.ReadLatestData(&conId)
+						log.Printf("conId: %v\tlist: %v\n", *conId, len(list))
+
+						list, err = fs.ReadLatestData(conId)
+
+						log.Printf("conId: %v\tlist: %v\n", *conId, len(list))
+						if err != nil {
+							log.Println(err)
+							continue
+						}
 
 						if len(list) > 0 {
-							ticker.Reset(sendInterval)
+							sendTicker.Reset(sendInterval)
 							log.Println("New data detected, resuming the timer.")
 							break
 						}
@@ -163,7 +184,7 @@ func main() {
 	exit := func() {
 		fs.Close()
 		storeTicker.Stop()
-		ticker.Stop()
+		sendTicker.Stop()
 	}
 
 	// Shutdown program

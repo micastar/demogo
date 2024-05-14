@@ -48,7 +48,7 @@ func (fs *FeedStore) SaveItem(item *gofeed.Item) error {
 	return nil
 }
 
-func (fs *FeedStore) ReadDataGId() (string, error) {
+func (fs *FeedStore) ReadDataGId() (*string, error) {
 
 	var id string
 
@@ -58,10 +58,10 @@ func (fs *FeedStore) ReadDataGId() (string, error) {
 
 	row := fs.conn.QueryRow(context.Background(), query)
 	if err := row.Scan(&id); err != nil {
-		return "", errors.New("Can't get the id from db")
+		return nil, errors.New("Can't get the id from db")
 	}
 
-	return id, nil
+	return &id, nil
 
 }
 
