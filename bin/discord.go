@@ -7,6 +7,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
+
+	"github.com/micastar/discord-feed/global"
 )
 
 type Discord struct {
@@ -17,7 +20,7 @@ type Config struct {
 	WebhookURL string `json:"webhook"`
 }
 
-func (c *Config) NewDiscord(msg Post) Discord {
+func (c *Config) NewDiscord(msg *Post) Discord {
 
 	discord := Discord{
 		Content: fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s\t%s", msg.Title, msg.Descrp, msg.Link, msg.Cates, msg.Logdate),
@@ -26,18 +29,45 @@ func (c *Config) NewDiscord(msg Post) Discord {
 	return discord
 }
 
-func (c *Config) InitialConfig(msg Post) error {
-	discord := c.NewDiscord(msg)
+func (c *Config) InitialConfig(msg []*Post) error {
 
-	err := c.SendDiscordReq(discord)
-	if err != nil {
-		return fmt.Errorf("InitialConfig Error: %s", err)
+	var wg sync.WaitGroup
+
+	var postList []Discord
+
+	go func(m []*Post) {
+		for _, v := range m {
+			wg.Add(1)
+			defer wg.Done()
+
+			postList = append(postList, c.NewDiscord(
+				v,
+			))
+
+		}
+	}(msg)
+
+	wg.Wait()
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			DisableKeepAlives: global.DisableKeepAlives,
+		},
+		Timeout: global.DefaultTimeOut,
+	}
+
+	for _, v := range postList {
+
+		err := c.SendDiscordReq(v, client)
+		if err != nil {
+			return fmt.Errorf("InitialConfig Error: %s", err)
+		}
 	}
 	return nil
 
 }
 
-func (c *Config) SendDiscordReq(discord Discord) error {
+func (c *Config) SendDiscordReq(discord Discord, client *http.Client) error {
 	json, err := json.Marshal(discord)
 	if err != nil {
 		log.Printf("%s", err)
@@ -47,10 +77,8 @@ func (c *Config) SendDiscordReq(discord Discord) error {
 	if err != nil {
 		return err
 	}
-	req.Close = true
 	req.Header.Add("Content-Type", "application/json")
 
-	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

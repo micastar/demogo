@@ -126,14 +126,11 @@ func main() {
 	// Send data with interval time
 	setData := func(i []*bin.Post) {
 
-		for _, v := range i {
-			log.Println("Initial Discord channel to Send data")
+		log.Println("Initial Discord channel to Send data")
 
-			err := discod.InitialConfig(*v)
-			time.Sleep(2 * time.Minute)
-			if err != nil {
-				log.Printf("InitialConfig: %s", err)
-			}
+		err := discod.InitialConfig(i)
+		if err != nil {
+			log.Printf("InitialConfig: %s", err)
 		}
 	}
 
