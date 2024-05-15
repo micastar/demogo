@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/joho/godotenv"
-	"github.com/micastar/discord-feed/global"
+	"github.com/micastar/discord-feed/pkg/global"
 )
 
 func TestDiscordWebhook(t *testing.T) {

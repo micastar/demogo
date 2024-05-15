@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/micastar/discord-feed/global"
+	"github.com/micastar/discord-feed/pkg/global"
 )
 
 type Discord struct {
