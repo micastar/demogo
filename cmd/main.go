@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -31,17 +32,19 @@ func main() {
 	// Accept a Event
 	// Start Clean Event
 	go func() {
-		for {
-			select {
-			case inExpired := <-clr:
+		select {
+		case inExpired := <-clr:
+			if inExpired != "" {
 				log.Println("Start clean Files")
 				utils.CleanupExpiredFiles(inExpired)
 			}
 		}
 	}()
 
+	var webServer *http.Server
+
 	// Start Web Server
-	web.Server()
+	web.Server(webServer)
 
 	// Gracefull Shutdown
 	done := make(chan os.Signal, 1)
@@ -51,7 +54,7 @@ func main() {
 	case <-done:
 		log.Println("!!!!!!!!!!!Shutdown all!!!!!!!!!!!")
 		close(clr)
-		web.Shutdown()
+		web.Shutdown(webServer)
 	}
 	log.Println("Graceful Exit Successfully!")
 }

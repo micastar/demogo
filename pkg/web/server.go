@@ -21,9 +21,9 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var webServer *http.Server
+// var webServer *http.Server
 
-func Server() {
+func Server(webServer *http.Server) {
 
 	r := chi.NewRouter()
 
@@ -53,7 +53,7 @@ func Server() {
 }
 
 // Shutdown the http server
-func Shutdown() {
+func Shutdown(webServer *http.Server) {
 	if webServer == nil {
 		log.Println("HTTP server is not running, skip to shutdown")
 		return
