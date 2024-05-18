@@ -90,8 +90,8 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 
 	// Save file to server
 	filename := filepath.Base(handler.Filename)
-	filePath := "assets/" + filename
-	outFile, err := os.Create(filePath)
+	uploadPath := filepath.Join("./assets", filename)
+	outFile, err := os.Create(uploadPath)
 	if err != nil {
 		log.Println(err)
 		http.Error(w, "Failed to create file", http.StatusInternalServerError)
@@ -110,7 +110,7 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	fileID := fmt.Sprintf("file:%d", time.Now().UnixNano())
 	fileMetadata := map[string]interface{}{
 		"filename": filename,
-		"path":     filePath,
+		"path":     uploadPath,
 	}
 
 	log.Println(fileID, "\t", fileMetadata)
