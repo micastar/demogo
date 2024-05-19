@@ -1,61 +1,56 @@
 package main
 
 import (
-	"context"
-	"log"
-	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 
-	"github.com/micastar/file-to-storage-and-share/config"
-	"github.com/micastar/file-to-storage-and-share/pkg/db"
-	"github.com/micastar/file-to-storage-and-share/pkg/utils"
-	"github.com/micastar/file-to-storage-and-share/pkg/web"
+	"github.com/micastar/file-to-storage-and-share/pkg/action"
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
-
-	var clr = make(chan string, 1)
-
-	// redis-cli config set notify-keyspace-events KEA
-	// Subscribe a expire event from redis
-	var rdb = db.RedisClient(config.REDIS_DB_MAIN)
-	pubsub := rdb.PSubscribe(context.Background(), "__keyevent@0__:expired")
-	go func() {
-		for msg := range pubsub.Channel() {
-			log.Println("Expired key:", msg.Payload)
-			clr <- msg.Payload
-		}
-	}()
-
-	// Accept a Event
-	// Start Clean Event
-	go func() {
-		for {
-			select {
-			case inExpired := <-clr:
-				if inExpired != "" {
-					log.Println("Start clean Files")
-					utils.CleanupExpiredFiles(inExpired)
-				}
-			}
-		}
-	}()
-
-	var webServer *http.Server
-
-	// Start Web Server
-	web.Server(webServer)
-
-	// Gracefull Shutdown
-	done := make(chan os.Signal, 1)
-	signal.Notify(done, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
-	select {
-	case <-done:
-		log.Println("!!!!!!!!!!!Shutdown all!!!!!!!!!!!")
-		web.Shutdown(webServer)
+	app := &cli.App{
+		Name:  "ftageshare",
+		Usage: "A simple stage and share file CLI",
+		Commands: []*cli.Command{
+			{
+				Name:    "web",
+				Aliases: []string{"i"},
+				Usage:   "Launch a server",
+				Action:  action.LaunchServer,
+			},
+			{
+				Name:   "upload",
+				Usage:  "Upload a file",
+				Action: action.UploadFile,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "file",
+						Aliases:  []string{"f"},
+						Usage:    "File path",
+						Required: true,
+					},
+				},
+			},
+			{
+				Name:   "download",
+				Usage:  "Download a file",
+				Action: action.DownloadFile,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "id",
+						Usage:    "File ID",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:     "output",
+						Aliases:  []string{"o"},
+						Usage:    "Output path",
+						Required: false,
+					},
+				},
+			},
+		},
 	}
-	log.Println("Graceful Exit Successfully!")
+
+	app.Run(os.Args)
 }
