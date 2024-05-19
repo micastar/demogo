@@ -73,6 +73,7 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	var ctx = context.Background()
 
 	// Parse multipart form
+	// https://freshman.tech/file-upload-golang/
 	err := r.ParseMultipartForm(10 << 20) // Set max memory to 10MB
 	if err != nil {
 		log.Println(err)

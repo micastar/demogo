@@ -32,11 +32,13 @@ func main() {
 	// Accept a Event
 	// Start Clean Event
 	go func() {
-		select {
-		case inExpired := <-clr:
-			if inExpired != "" {
-				log.Println("Start clean Files")
-				utils.CleanupExpiredFiles(inExpired)
+		for {
+			select {
+			case inExpired := <-clr:
+				if inExpired != "" {
+					log.Println("Start clean Files")
+					utils.CleanupExpiredFiles(inExpired)
+				}
 			}
 		}
 	}()
@@ -53,7 +55,6 @@ func main() {
 	select {
 	case <-done:
 		log.Println("!!!!!!!!!!!Shutdown all!!!!!!!!!!!")
-		close(clr)
 		web.Shutdown(webServer)
 	}
 	log.Println("Graceful Exit Successfully!")
