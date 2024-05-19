@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -17,9 +16,11 @@ type Device struct {
 }
 
 var dvs []Device
+var version string
 
 type metrics struct {
 	devices prometheus.Gauge
+	info    *prometheus.GaugeVec
 }
 
 func NewMetrics(reg prometheus.Registerer) *metrics {
@@ -29,13 +30,20 @@ func NewMetrics(reg prometheus.Registerer) *metrics {
 			Name:      "connected_devices",
 			Help:      "Unmber of currently connected devices",
 		}),
+		info: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "myapp",
+			Name:      "info",
+			Help:      "Information about the My App environment",
+		}, []string{"version"}),
 	}
-	reg.MustRegister(m.devices)
+	reg.MustRegister(m.devices, m.info)
 
 	return m
 }
 
 func init() {
+	version = "2.10.5"
+
 	dvs = []Device{
 		{1, "beaa-d46d6df4bd89", "2,1,6"},
 		{2, "b1e5-d46d6df4bd89", "2,1,6"},
@@ -45,12 +53,12 @@ func init() {
 func main() {
 
 	reg := prometheus.NewRegistry()
-	reg.MustRegister(collectors.NewGoCollector())
 	m := NewMetrics(reg)
 
 	m.devices.Set(float64(len(dvs)))
+	m.info.With(prometheus.Labels{"version": version}).Set(1)
 
-	promHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{EnableOpenMetrics: true, Registry: reg})
+	promHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{EnableOpenMetrics: true})
 
 	http.Handle("/metrics", promHandler)
 	http.HandleFunc("/devices", getDevice)
