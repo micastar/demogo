@@ -23,10 +23,11 @@ var dvs []Device
 var version string
 
 type metrics struct {
-	devices  prometheus.Gauge
-	info     *prometheus.GaugeVec
-	upgrades *prometheus.CounterVec
-	duration *prometheus.HistogramVec
+	devices       prometheus.Gauge
+	info          *prometheus.GaugeVec
+	upgrades      *prometheus.CounterVec
+	duration      *prometheus.HistogramVec
+	loginDuration prometheus.Summary
 }
 
 func NewMetrics(reg prometheus.Registerer) *metrics {
@@ -58,8 +59,14 @@ func NewMetrics(reg prometheus.Registerer) *metrics {
 			// Buckets: prometheus.LinearBuckets(0.1, 5, 5),
 			Buckets: []float64{0.1, 0.15, 0.2, 0.25, 0.3},
 		}, []string{"status", "method"}),
+		loginDuration: prometheus.NewSummary(prometheus.SummaryOpts{
+			Namespace:  "myapp",
+			Name:       "login_request_duration_seconds",
+			Help:       "Duration of the login request",
+			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		}),
 	}
-	reg.MustRegister(m.devices, m.info, m.upgrades, m.duration)
+	reg.MustRegister(m.devices, m.info, m.upgrades, m.duration, m.loginDuration)
 
 	return m
 }
@@ -84,9 +91,14 @@ func main() {
 	dMux := http.ServeMux{}
 	rdh := registerDevicesHandler{metrics: m}
 	mdh := managerDevicesHandler{metrics: m}
+
+	lh := loginHandler{}
+	mlh := middleware(lh, m)
+
 	dMux.Handle("/devices", rdh)
 	dMux.Handle("/devices/", mdh)
 	// dMux.HandleFunc("/devices", rdh.ServeHTTP)
+	dMux.Handle("/login", mlh)
 
 	pMux := http.ServeMux{}
 	promHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{EnableOpenMetrics: true})
@@ -207,4 +219,20 @@ func sleep(ms int) {
 
 	n := rand.Intn(ms + now.Second())
 	time.Sleep(time.Duration(n) * time.Millisecond)
+}
+
+type loginHandler struct{}
+
+func (l loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	sleep(200)
+
+	w.Write([]byte("Welcome to the app!"))
+}
+
+func middleware(next http.Handler, m *metrics) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		now := time.Now()
+		next.ServeHTTP(w, r)
+		m.loginDuration.Observe(float64(time.Since(now).Seconds()))
+	})
 }
