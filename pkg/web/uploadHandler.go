@@ -18,12 +18,12 @@ import (
 
 type uploadHandler struct{}
 
-func newUploadHandler() uploadHandler {
-	return uploadHandler{}
-}
+// func newUploadHandler() uploadHandler {
+// 	return uploadHandler{}
+// }
 
 func uploadFile(w http.ResponseWriter, r *http.Request) {
-	var u = newUploadHandler()
+	var u = uploadHandler{}
 
 	u.parseData(w, r)
 	filename, uploadPath := u.retrieveData(w, r)
