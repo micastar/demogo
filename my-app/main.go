@@ -26,6 +26,7 @@ type metrics struct {
 	devices  prometheus.Gauge
 	info     *prometheus.GaugeVec
 	upgrades *prometheus.CounterVec
+	duration *prometheus.HistogramVec
 }
 
 func NewMetrics(reg prometheus.Registerer) *metrics {
@@ -45,8 +46,20 @@ func NewMetrics(reg prometheus.Registerer) *metrics {
 			Name:      "device_upgrade_total",
 			Help:      "Number of upgraded devices",
 		}, []string{"type"}),
+
+		// ..._duration_seconds_sum is the total sum of all observed values. Since I invoked the /devices endpoint just once, it looks like the duration of that first request was around 65 ms.
+		// ...duration_seconds_count - is the count of events that have been observed. Since I made a single request, we have a single count.
+		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "myapp",
+			Name:      "request_duration_seconds",
+			Help:      "Duration of the request",
+			// 4 times larger for apdex score
+			// Buckets: prometheus.ExponentialBuckets(0.1, 1.5, 5),
+			// Buckets: prometheus.LinearBuckets(0.1, 5, 5),
+			Buckets: []float64{0.1, 0.15, 0.2, 0.25, 0.3},
+		}, []string{"status", "method"}),
 	}
-	reg.MustRegister(m.devices, m.info, m.upgrades)
+	reg.MustRegister(m.devices, m.info, m.upgrades, m.duration)
 
 	return m
 }
@@ -97,7 +110,7 @@ type registerDevicesHandler struct {
 func (rdh registerDevicesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		getDevice(w, r)
+		getDevice(w, r, rdh.metrics)
 	case "POST":
 		createDevice(w, r, rdh.metrics)
 	default:
@@ -106,12 +119,19 @@ func (rdh registerDevicesHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func getDevice(w http.ResponseWriter, _ *http.Request) {
+func getDevice(w http.ResponseWriter, _ *http.Request, m *metrics) {
+	now := time.Now()
+
 	b, err := json.Marshal(dvs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	sleep(200)
+
+	m.duration.With(prometheus.Labels{"method": "GET", "status": "200"}).Observe(time.Since(now).Seconds())
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(b)
