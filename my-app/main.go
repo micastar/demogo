@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"net"
+	"log"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -58,14 +58,19 @@ func main() {
 	m.devices.Set(float64(len(dvs)))
 	m.info.With(prometheus.Labels{"version": version}).Set(1)
 
-	promHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{EnableOpenMetrics: true})
+	dMux := http.ServeMux{}
+	dMux.HandleFunc("/devices", getDevice)
 
-	http.Handle("/metrics", promHandler)
-	http.HandleFunc("/devices", getDevice)
-	webServer := &http.Server{}
-	server, _ := net.Listen("tcp", ":8833")
+	pMux := http.ServeMux{}
+	promHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{EnableOpenMetrics: true})
+	pMux.Handle("/metrics", promHandler)
+
 	go func() {
-		webServer.Serve(server)
+		log.Fatal(http.ListenAndServe(":8833", &dMux))
+	}()
+
+	go func() {
+		log.Fatal(http.ListenAndServe(":8844", &pMux))
 	}()
 
 	select {}
