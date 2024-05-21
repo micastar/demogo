@@ -7,16 +7,22 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/httprate"
 	"github.com/micastar/file-to-storage-and-share/config"
+	"github.com/micastar/file-to-storage-and-share/pkg/metric"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// var webServer *http.Server
 func Server(webServer *http.Server) {
+
+	reg := prometheus.NewRegistry()
+	m := metric.NewMetrics(reg)
+
+	uh := &uploadHandler{metric: m}
+	dh := &downloadHandler{metric: m}
 
 	r := chi.NewRouter()
 
@@ -24,10 +30,12 @@ func Server(webServer *http.Server) {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RedirectSlashes)
 	r.Use(middleware.StripSlashes)
-	r.Use(httprate.LimitByIP(8, 5*time.Minute))
 
-	r.Post("/upload", uploadFile)
-	r.Get("/download/{fileID}", downloadFile)
+	promHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{EnableOpenMetrics: true, Registry: reg})
+	r.Get("/metrics", promHandler.ServeHTTP)
+
+	r.Post("/upload", uh.ServeHTTP)
+	r.Get("/download/{fileID}", dh.ServeHTTP)
 
 	server, err := net.Listen("tcp", fmt.Sprintf("%s:%s", config.CHI_ADDR, config.CHI_PORT))
 	if err != nil {
