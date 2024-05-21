@@ -1,0 +1,65 @@
+services:
+  # Prometheus Service
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yaml'
+    ports:
+      - 9393:9090
+    restart: unless-stopped
+    volumes:
+      - ./prometheus:/etc/prometheus
+    networks:
+      static-network:
+        ipv4_address: 10.5.0.2
+        
+  # Grafana Service
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - 3000:3000
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana:/etc/grafana/provisioning/datasources
+    networks:
+      static-network:
+        ipv4_address: 10.5.0.3
+
+  # Redis Service
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - 6379:6379
+    restart: unless-stopped
+    volumes:
+      - ./redis:/usr/local/etc/redis/
+    command: redis-server /usr/local/etc/redis/redis.conf
+    # command: redis-cli config set notify-keyspace-events KEA
+    networks:
+      static-network:
+        ipv4_address: 10.5.0.4
+        
+  # Filestorageshare Service
+  fss:
+    build: ../../
+    container_name: fss
+    ports:
+       - 8338:8338
+    restart: unless-stopped
+    networks:
+      static-network:
+        ipv4_address: 10.5.0.5
+
+networks:
+  static-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1
