@@ -3,33 +3,44 @@ package web
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/micastar/file-to-storage-and-share/config"
 	"github.com/micastar/file-to-storage-and-share/pkg/db"
+	"github.com/micastar/file-to-storage-and-share/pkg/metric"
+	"github.com/micastar/file-to-storage-and-share/pkg/utils"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-type uploadHandler struct{}
+type uploadHandler struct {
+	metric *metric.Metrics
+}
 
-// func newUploadHandler() uploadHandler {
-// 	return uploadHandler{}
-// }
+func (uh *uploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "POST":
+		uploadFile(w, r, uh.metric)
+	default:
+		w.Header().Set("Allow", "POST")
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 
-func uploadFile(w http.ResponseWriter, r *http.Request) {
-	var u = uploadHandler{}
+	}
 
-	u.parseData(w, r)
-	filename, uploadPath := u.retrieveData(w, r)
-	fileID, fileMetadata := u.generateFileID(filename, uploadPath)
+}
 
-	go u.setFileWithRedis(fileID, fileMetadata, w)
+func uploadFile(w http.ResponseWriter, r *http.Request, m *metric.Metrics) {
+
+	now := time.Now().UTC()
+
+	parseData(w, r)
+	filename, uploadPath := retrieveData(w, r)
+	fileID, fileMetadata := generateFileID(filename, uploadPath)
+
+	go setFileWithRedis(fileID, fileMetadata, w)
 
 	// Return success response
 	w.Header().Set("Content-Type", "application/json")
@@ -37,9 +48,11 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	response := fmt.Sprintf(`{"message": "File uploaded successfully", "file_id": "%s"}`, fileID)
 	w.Write([]byte(response))
 
+	m.UpRequestCounter.With(prometheus.Labels{"type": "upload"}).Inc()
+	m.UpRequestDuration.Observe(time.Since(now).Seconds())
 }
 
-func (u uploadHandler) setFileWithRedis(fileID string, fileMetadata map[string]any, w http.ResponseWriter) {
+func setFileWithRedis(fileID string, fileMetadata map[string]any, w http.ResponseWriter) {
 
 	var ctx = context.Background()
 
@@ -79,7 +92,7 @@ func (u uploadHandler) setFileWithRedis(fileID string, fileMetadata map[string]a
 	}
 }
 
-func (u uploadHandler) parseData(w http.ResponseWriter, r *http.Request) {
+func parseData(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form
 	// https://freshman.tech/file-upload-golang/
 	err := r.ParseMultipartForm(10 << 20) // Set max memory to 10MB
@@ -90,7 +103,7 @@ func (u uploadHandler) parseData(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (u uploadHandler) retrieveData(w http.ResponseWriter, r *http.Request) (string, string) {
+func retrieveData(w http.ResponseWriter, r *http.Request) (string, string) {
 
 	file, handler, err := r.FormFile("file")
 	if err != nil {
@@ -101,36 +114,32 @@ func (u uploadHandler) retrieveData(w http.ResponseWriter, r *http.Request) (str
 	defer file.Close()
 	filename := filepath.Base(handler.Filename)
 
-	outFile, uploadPath := u.saveFile(w, filename)
+	outFile, uploadPath := saveFile(w, filename)
 	defer outFile.Close()
 
-	u.copy2Dst(w, outFile, file)
+	utils.Copy2Dst(w, outFile, file)
 
 	return filename, uploadPath
 }
 
-func (u uploadHandler) saveFile(w http.ResponseWriter, filename string) (*os.File, string) {
-	uploadPath := filepath.Join("./assets", filename)
-	outFile, err := os.Create(strings.TrimSpace(uploadPath))
+const uploadDir = "./assets"
+
+func saveFile(w http.ResponseWriter, filename string) (*os.File, string) {
+
+	os.MkdirAll(uploadDir, 0o755)
+	filePath := filepath.Join(uploadDir, filename)
+
+	// Create the file on disk
+	destFile, err := os.Create(filePath)
 	if err != nil {
-		log.Println("saveFile: ", err)
-		http.Error(w, "Failed to create file", http.StatusInternalServerError)
+		http.Error(w, "Unable to create file on disk", http.StatusInternalServerError)
 		return nil, ""
 	}
 
-	return outFile, uploadPath
+	return destFile, filePath
 }
 
-func (u uploadHandler) copy2Dst(w http.ResponseWriter, outFile *os.File, file multipart.File) {
-	_, err := io.Copy(outFile, file)
-	if err != nil {
-		log.Println("copy2Dst: ", err)
-		http.Error(w, "Failed to copy file data", http.StatusInternalServerError)
-		return
-	}
-}
-
-func (u uploadHandler) generateFileID(filename string, uploadPath string) (string, map[string]any) {
+func generateFileID(filename string, uploadPath string) (string, map[string]any) {
 	fileID := fmt.Sprintf("file:%d", time.Now().UnixNano())
 	fileMetadata := map[string]any{
 		"filename": filename,
